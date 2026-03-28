@@ -1,58 +1,278 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Maldives Stock Exchange — Customer Inquiry Management API
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+A backend-only REST API built with Laravel 13 that lets visitors submit customer
+inquiries and lets staff retrieve them. Built for compliance, with full audit
+logging and database transaction handling.
 
-## About Laravel
+---
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Prerequisites
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/)
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+That's it. PHP, Composer, and MySQL all run inside containers.
 
-## Learning Laravel
+---
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
-
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+## Running the project
 
 ```bash
-composer require laravel/boost --dev
+# 1. Clone the repo
+git clone <repo-url>
+cd maldives_stock_exchange
 
-php artisan boost:install
+# 2. Start all services (builds on first run)
+docker compose up --build -d
+
+# 3. Check everything is up
+docker compose ps
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+The API is now live at **http://localhost:8080**.
 
-## Contributing
+On first start the app container automatically runs migrations before accepting
+requests. You can watch the logs with:
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+```bash
+docker compose logs -f app
+```
 
-## Code of Conduct
+To stop:
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+```bash
+docker compose down          # stops containers, keeps database
+docker compose down -v       # stops containers and wipes the database
+```
 
-## Security Vulnerabilities
+---
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+## Manual testing
 
-## License
+A browser-based test UI is included. Open it at:
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+```
+http://localhost:8080/test-ui.html
+```
+
+It covers all three endpoints with forms, filters, pagination, and raw response
+inspection.
+
+---
+
+## API reference
+
+Base URL: `http://localhost:8080/api`
+
+All requests must include the header:
+```
+Accept: application/json
+```
+
+---
+
+### POST /api/inquiries
+
+Submit a new inquiry.
+
+**Request body**
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `name` | string | Yes | Max 255 characters |
+| `email` | string | Yes | Must be a valid email |
+| `phone` | string | No | Max 20 characters |
+| `category` | string | Yes | See allowed values below |
+| `subject` | string | Yes | Max 255 characters |
+| `message` | string | Yes | Between 10 and 5000 characters |
+
+Allowed `category` values: `trading`, `market_data`, `technical_issues`, `general_questions`
+
+**Example request**
+
+```bash
+curl -X POST http://localhost:8080/api/inquiries \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  -d '{
+    "name": "Ahmed Rasheed",
+    "email": "ahmed@mse.mv",
+    "phone": "+960 300 0000",
+    "category": "trading",
+    "subject": "Order not executing",
+    "message": "My buy order for 1000 shares has been pending for over an hour."
+  }'
+```
+
+**Response — 201 Created**
+
+```json
+{
+  "data": {
+    "id": 1,
+    "reference_number": "MSE-A3BF92CK",
+    "name": "Ahmed Rasheed",
+    "email": "ahmed@mse.mv",
+    "phone": "+960 300 0000",
+    "category": "trading",
+    "subject": "Order not executing",
+    "message": "My buy order for 1000 shares has been pending for over an hour.",
+    "status": "open",
+    "created_at": "2026-03-28T08:00:00.000000Z",
+    "updated_at": "2026-03-28T08:00:00.000000Z"
+  }
+}
+```
+
+**Response — 422 Unprocessable Entity** (validation failure)
+
+```json
+{
+  "message": "The email field must be a valid email address. (and 1 more error)",
+  "errors": {
+    "email": ["The email field must be a valid email address."],
+    "category": ["Category must be one of: trading, market_data, technical_issues, general_questions."]
+  }
+}
+```
+
+---
+
+### GET /api/inquiries
+
+Retrieve a paginated list of inquiries.
+
+**Query parameters**
+
+| Parameter | Type | Notes |
+|-----------|------|-------|
+| `category` | string | Filter by category |
+| `status` | string | Filter by status (`open`, `in_progress`, `resolved`, `closed`) |
+| `per_page` | integer | Results per page, default `15` |
+| `page` | integer | Page number, default `1` |
+
+**Example request**
+
+```bash
+curl "http://localhost:8080/api/inquiries?category=trading&status=open&per_page=5" \
+  -H "Accept: application/json"
+```
+
+**Response — 200 OK**
+
+```json
+{
+  "data": [
+    {
+      "id": 1,
+      "reference_number": "MSE-A3BF92CK",
+      "name": "Ahmed Rasheed",
+      "email": "ahmed@mse.mv",
+      "phone": "+960 300 0000",
+      "category": "trading",
+      "subject": "Order not executing",
+      "message": "My buy order for 1000 shares has been pending for over an hour.",
+      "status": "open",
+      "created_at": "2026-03-28T08:00:00.000000Z",
+      "updated_at": "2026-03-28T08:00:00.000000Z"
+    }
+  ],
+  "meta": {
+    "current_page": 1,
+    "last_page": 1,
+    "per_page": 5,
+    "total": 1
+  },
+  "links": {
+    "first": "http://localhost:8080/api/inquiries?page=1",
+    "last": "http://localhost:8080/api/inquiries?page=1",
+    "prev": null,
+    "next": null
+  }
+}
+```
+
+---
+
+### GET /api/inquiries/{id}
+
+Retrieve a single inquiry by its ID.
+
+**Example request**
+
+```bash
+curl http://localhost:8080/api/inquiries/1 \
+  -H "Accept: application/json"
+```
+
+**Response — 200 OK**
+
+```json
+{
+  "data": {
+    "id": 1,
+    "reference_number": "MSE-A3BF92CK",
+    "name": "Ahmed Rasheed",
+    "email": "ahmed@mse.mv",
+    "phone": "+960 300 0000",
+    "category": "trading",
+    "subject": "Order not executing",
+    "message": "My buy order for 1000 shares has been pending for over an hour.",
+    "status": "open",
+    "created_at": "2026-03-28T08:00:00.000000Z",
+    "updated_at": "2026-03-28T08:00:00.000000Z"
+  }
+}
+```
+
+**Response — 404 Not Found**
+
+```json
+{
+  "message": "No query results for model [App\\Models\\Inquiry] 999"
+}
+```
+
+---
+
+## Running the tests
+
+Tests run locally against an in-memory SQLite database — no Docker required.
+
+```bash
+# Install dependencies (if not already done)
+composer install
+
+# Run the full test suite
+php artisan test
+```
+
+Expected output:
+
+```
+PASS  Tests\Feature\InquiryApiTest
+✓ store creates inquiry and returns 201
+✓ store persists all fields correctly
+...
+
+Tests: 32 passed (123 assertions)
+```
+
+---
+
+## Infrastructure
+
+| Container | Image | Exposed port |
+|-----------|-------|-------------|
+| `mse_nginx` | nginx:1.27-alpine | `8080` |
+| `mse_app` | php:8.4-fpm-alpine | internal only |
+| `mse_db` | mysql:8.4 | `3307` (host) |
+
+The MySQL database is also accessible directly on `localhost:3307` if you need
+to inspect it with a database client.
+
+---
+
+## Further reading
+
+See [`GUIDE.md`](GUIDE.md) for a full walkthrough of how the code is structured,
+what every file does, and what Laravel conventions were used.
